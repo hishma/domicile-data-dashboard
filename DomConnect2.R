@@ -13,6 +13,7 @@ library(stringr)
 library(leaflet)
 library(broom)
 
+##these are data files to load
 load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/dommaster.RData")
 load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/BookingMaster.RData")
 load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/DomSummary.RData")
