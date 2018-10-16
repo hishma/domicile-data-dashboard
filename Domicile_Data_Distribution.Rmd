@@ -1,0 +1,134 @@
+---
+title: "Domicile Data: Distribution of Bookings"
+date: "10/11/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(DBI)
+library(zoo)
+library(xts)
+library(scales)
+library(forcats)
+library(gridExtra)
+library(plotly)
+library(quantreg)
+library(stringr)
+library(leaflet)
+library(broom)
+
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/dommaster.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/BookingMaster.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/DomSummary.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/WeekOcc.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/RPOcc.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/DomBookings.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/WeekSum.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/DaysDF.RData")
+load("/Users/bari/R_files/Domicile/Domproject/DomicileDashboardShiny/domneighborhoods.RData")
+load("~/R_files/Domicile/DomProject/DomicileDashboardShiny/MonthDet.RData")
+load("~/R_files/Domicile/DomProject/DomicileDashboardShiny/MonthAll.RData")
+
+DomCol11 <- c("#885EA8", "#6AA6E2", "#FF6347", "#878787", "#CD853F", "#36648B", "#FFC125", "#FB9A99", "#589CA1FD", "#B89C76FE", "#A2CD5A")
+
+DomVel <- DomBookings %>% left_join(domneighborhoods, by = "Bldg_Name") %>% 
+  mutate(rev_mo = ymd(cut(check_in_date, breaks = "month"), tz = ""),
+    weekday = factor(weekdays(check_in_date, abbreviate = T), levels = c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")))
+```
+#### Summary of the Booking Data
+Summary statistics of data show sources and the number of bookings by each channel.   Note the large outliers in some of the Max and Min values.  They warrant further investigation to understand if they are input errors and should be corrected or discarded.  The data has not been filtered by any timeframe, so represents all Domicile confirmed bookings.  
+
+```{r, echo=FALSE, fig.align="center"}
+DomVel %>% mutate(source = factor(source)) %>% select(source, ADR, num_nights, days_in_advance) %>%
+  summary()
+```
+#### Bookings by source
+**Boxplots** show the summary distribution of data: min, max, median and quartiles.  The box encloses values that represent 50% of the data, bounded by the 25th and 75th quartiles. Outliers to the data are shown with black dots.  The "whisker" lines extend to min and max values.  Colored dots behind the plot are individual bookings, to give perspective on the number of values shown in the distribution.   
+Airbnb and Expedia represent the largest venues for bookings, and also the lowest median ADR. Some of the lower volume booking venues seem to provide bookings at higher rates.  It would be interesting to drill down on the demographic of the higher rated bookings.  Do they occur in specific months, or are the customers from any particular region?
+
+
+```{r echo=FALSE, fig.width=15, fig.asp=0.618, fig.align="center", warning=FALSE, message=FALSE}
+sourcemed <- DomVel %>% group_by(source) %>% summarise(medADR = median(ADR)) %>% ungroup()
+DomVel %>% ggplot(aes(source, ADR)) +
+  geom_point(aes(color = source), alpha = .35, size = 3, position = "jitter") + 
+  scale_color_manual(values = DomCol11) +
+  geom_boxplot() + 
+  geom_text(data = sourcemed, aes(x = source, y = medADR + 10, label = dollar(medADR))) + 
+  scale_y_continuous(labels = dollar) +
+  theme_light() + 
+  theme(panel.grid.major.x = element_blank()) +
+  labs(title = "ADR by Source", subtite = "Median ADR labeled", x = NULL, caption = "Represents all bookings. No filters applied for timeframe")
+
+```
+
+#### Length of Stay
+The histogram shows distribution of the raw booking data by length of stay.  The data had large outliers. These were filtered out to provide better detail on the majority of the data.  
+
+
+```{r pressure, echo=FALSE, fig.width=15, fig.asp=0.618, fig.align="center", warning=FALSE, message=FALSE}
+DomVel %>%
+  select(ADR, num_nights, days_in_advance, weekday) %>%
+  filter(num_nights < 25) %>%
+  ggplot(aes(num_nights)) +
+  geom_histogram(fill = "#8B668B", binwidth = 1) +
+  scale_x_continuous(breaks = c(0:25), expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_light() + 
+  labs(title = "Distribution of Stay Length", 
+       subtitle = "excluding outliers > 25 days",
+       y = "number of bookings", x = "number of nights")
+```
+## Trend by day of check-in
+Is there any trend by day of the week?  Do check-ins that begin on different days have different average durations?  We can see that there are slightly more check-ins on Friday, with shorter durations of stay.  We can see that Fridays are more likely to have only 2 nights, consistent with weekend travelers.  Thursday check_ins are more likely to stay into the weekend.  And check_ins on Sunday have the longest average duration of stay.   Median values were used instead of average to reduce the impact of large outliers on the average.  
+
+```{r, echo=FALSE, fig.width=15, fig.asp=0.618, fig.align="center", warning=FALSE, message=FALSE}
+MEDCOH <- DomVel %>% group_by(cohort, weekday) %>%
+  summarise(check_ins = n(), medstay = median(num_nights)) %>% filter(!is.na(cohort)) %>%
+  ggplot(aes(weekday, medstay)) + 
+  geom_col(aes(fill=cohort), position = "dodge") +
+  scale_fill_manual(values = DomCol11) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 4.5)) +
+  theme_light() + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.title = element_blank()) +
+  labs(x = NULL, y = "median duration")
+
+DOWFreq <- DomVel %>% group_by(cohort, weekday) %>% 
+  summarize(daynum = n()) %>% ungroup() %>% group_by(cohort) %>% 
+  mutate(totday = sum(daynum), pct = daynum / sum(daynum)) %>% filter(!is.na(cohort)) %>%
+  ggplot(aes(weekday, pct, group = cohort)) + 
+  geom_col(aes(fill = cohort), position = "dodge") + 
+  scale_y_continuous(label = percent, expand = c(0,0), limits = c(0, 0.25)) +
+  scale_fill_manual(values = DomCol11) +
+  theme_light() + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.title = element_blank()) + 
+  labs(title = "Check In Days of Week by Cohort",  
+       y = "% of Total Check Ins", x = NULL)
+
+grid.arrange(DOWFreq, MEDCOH)
+```
+### Booking in Advance
+Does how far ahead a booking is made have any impact on price?  Perhaps. This plot shows the distribution of bookings by ADR and the number of days ahead of check-in that the booking was made.  A linear smoothing model was applied, with standard error shown in light gray.  It doesn't appear that there's a strong trend, and the large outliers probably have impact on the slope of the regression line.  
+```{r, echo=FALSE, fig.width=15, fig.asp=0.618, fig.align="center", warning=FALSE, message=FALSE}
+DomVel %>% filter(days_in_advance >= 0, !is.na(cohort)) %>%
+  ggplot(aes(days_in_advance, ADR, color = cohort)) +
+  geom_point(alpha = 0.35, position = "jitter", show.legend = T) +
+  geom_smooth(method = "lm", formula = y~x, se = T, na.rm = T, color = "gray") + 
+  facet_grid(.~cohort, scales = "free_x") + 
+  scale_color_manual(values = DomCol11) +
+  labs(title = "Price Regression Model", 
+       subtitle = "Is price impacted by how far in advance the booking is made?",
+       x = "days in advance") +
+  scale_y_continuous(labels = dollar_format(), expand = c(0,0)) +
+  theme_light() +
+  theme(strip.text = element_text(face = "bold", size = 12),
+        axis.text = element_text(size = 11))
+
+```
+

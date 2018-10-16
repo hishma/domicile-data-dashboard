@@ -1,0 +1,99 @@
+---
+title: "TIGER Grant Analysis"
+author: "Bari Bookout"
+date: "9/26/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(tidyverse)
+library(stringr)
+library(readr)
+library(babynames)
+library(rebus)
+library(forcats)
+library(gridExtra)
+library(maps)
+library(mapdata)
+library(ggmap)
+library(scales)
+partycolours <- c("#F53513EF", "#1B81DBFE")
+load("/Users/bari/R-files/projects/TigerResearch/TGCC.RData")
+load("/Users/bari/R-files/projects/TigerResearch/TGD48.RData")
+load("/Users/bari/R-files/projects/TigerResearch/StatesD.RData")
+```
+
+
+
+
+
+```{r cars}
+```
+
+##TIGER Grant Dollars
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE, fig.width=8, fig.asp=0.618, fig.align="center"}
+AnSummary <- TGCC %>% group_by(Year) %>% summarize(Dollars = sum(Award), Projects = sum(Projects), 
+                                      HD = sum(HD, na.rm = T), HR = sum(HR, na.rm = T),
+                                      Majority = case_when(HD - HR > 0 ~ "D",
+                                                           TRUE ~ "R"))
+AnSummary %>% ggplot() + 
+  geom_col(aes(x = factor(Year), y = Dollars / 1000000, fill = Dollars)) +
+  geom_text(aes(x = factor(Year), y = Dollars / 1000000 + 30, 
+                label = paste(dollar(round(Dollars / 1000000)), "M", sep = ""))) + 
+  scale_y_continuous(labels = dollar, expand = c(0, 0), limits = c(0, 1600)) + 
+  labs(title = "Total TIGER Dollars by Year", y = NULL, x = NULL) +
+  theme_light() + 
+  theme(panel.grid = element_blank(),
+        panel.border = element_blank(),
+        axis.line.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank())
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the
+
+```{r, echo=FALSE, fig.width=8, fig.asp=0.618, fig.align="center"}
+gg1 <- ggplot(data = StatesD) +
+  geom_polygon(aes(long, lat, fill = TotalDollars, group = group), color = "white", show.legend = T) +
+  coord_fixed(1.3) + 
+  scale_fill_continuous(labels = dollar) +
+  theme_light() + 
+  theme(axis.line = element_blank(),
+                                           axis.ticks = element_blank(),
+                                           axis.text = element_blank(),
+                                           panel.border = element_blank(),
+                                           panel.grid = element_blank(),
+                                           axis.title = element_blank()) 
+
+gg1 + 
+  geom_label(data = TGD48 %>% filter(!is.na(Majority)), 
+             aes(Longitude, Latitude, label = TigerProjects, color = Majority 
+                              ), size = 1.5) +
+  scale_color_manual(values = partycolours) +
+  labs(title = "TIGER Projects 2007-2017", subtitle = "number of projects", 
+       caption = "color scale represents dollars awarded\nhouse member majority identified by label color", 
+       color = "Number of Projects")
+```
+
+```{r, echo=FALSE, fig.width=8, fig.asp=0.618, fig.align="center"}
+TGCC %>% group_by(Year, HMaj) %>% summarise(Award = sum(Award), Project = sum(Projects)) %>% ungroup() %>% 
+  filter(!is.na(HMaj)) %>% 
+  ggplot(aes(factor(Year))) +
+  geom_col(aes(y = Award, fill = HMaj), position = "dodge") + 
+  geom_text(aes(y = Award + 10005500, label = paste(dollar(round(Award / 1000000)), "M", sep = "")), 
+            position = position_dodge(1)) + 
+  labs(title = "TIGER Grant Awards", subtitle = "by Majority Party of House Represenatatives by State", 
+       x = "Year", y = "Amount Awarded") +
+  scale_y_continuous(labels = dollar_format(), expand = c(0,0), limits = c(0, 1225000000)) + 
+  scale_fill_manual(values = partycolours, name = "House Majority") +
+  theme_light() + 
+  theme(panel.grid.major.x = element_blank())
+
+```
+

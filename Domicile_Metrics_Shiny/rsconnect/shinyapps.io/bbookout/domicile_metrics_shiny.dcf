@@ -1,0 +1,10 @@
+name: domicile_metrics_shiny
+title:
+username:
+account: bbookout
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 416394
+bundleId: 1564544
+url: https://bbookout.shinyapps.io/domicile_metrics_shiny/
+when: 1535759830.4888

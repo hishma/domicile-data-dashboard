@@ -1,0 +1,253 @@
+---
+title: "Domicile_Report TAKE 2"
+date: "8/30/2018"
+output: html_document
+---
+
+```{r setup, warning = FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(DBI)
+library(zoo)
+library(xts)
+library(scales)
+library(forcats)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+domconnect <- dbConnect(RPostgreSQL::PostgreSQL(),
+                        dbname = "domicile-reports",
+                        host = "reporting-db.bookdomicile.com",
+                        port = 5432,
+                        user = "reporter",
+                        password = "0Qo0m@%F2JCh")
+
+dbListTables(domconnect)
+#download "bookings" table" from Dbase
+dombookings <- dbReadTable(domconnect, "bookings")
+dombookings %>% write_csv("~/R_files/Domicile/DomProject/DomData/bookings.csv")
+dombookings1 <- dombookings %>% mutate(check_in_date = ymd(check_in_date, tz = ""),
+                                      check_out_date = ymd(check_out_date, tz = ""))
+#disconnect to dBase
+dbDisconnect(domconnect)
+#Color Palette
+DomColor <-  c("#8B668B", "#6CA6CD", "#FF6347", "#A2CD5A", "#878787", "#CD853F", "#36648B", "#FFC125", "#fb9a99", "#53868B", "#8B795E")
+DomColor2 <- c("#FD3B36", "#6AA6E2", "#0F425D", "#888888", "#885EA8", "#7ED321", "#FF7F00", "#FFB90F", "#698B69", "#CDBA96")
+#import, shape, and connect other tables.
+dombuildings <- read_csv("~/R_files/Domicile/DomProject/DomData/bldg.csv") %>% write_csv("~/R_files/Domicile/DomProject/DomData/dombuildings.csv")
+domlaunch_dates <- read_csv("~/R_files/Domicile/DomProject/DomData/launch_dates.csv")
+#there are two values for end_dates for some buildings, which caused join to duplicate data.  Filtered for Max End-Date.
+domlaunch_dates1 <- domlaunch_dates %>% mutate(launch_date = mdy(launch_date, tz = ""), end_date = mdy(end_date, tz = "")) %>% 
+  group_by(listing_nickname) %>% summarise(launch_date = min(launch_date), end_date = max(end_date)) %>% ungroup()  
+ 
+dombdgmaster <- dombuildings %>% left_join(domlaunch_dates1, by = "listing_nickname")  
+
+  dommaster <- dombookings %>% left_join(dombdgmaster, by = "listing_nickname") 
+
+head(dommaster)
+glimpse(dommaster)
+nrow(dommaster)
+
+ListingNicknames <- unique(dommaster$listing_nickname)
+
+#8-29-2018 create a list of all of the dates each room is booked and divide revenue by # of nights.  The sequence of dates is reduced by one day to 
+#accomodate the fact that revenue is not accrued on the checkout date, and that someone may check-in on the checkout date.
+DomBookings <- dommaster %>% filter(status %in% c("confirmed", "reserved") & host_payout > 0 & (!is.na(check_in_date) | !is.na(check_out_date))) %>% 
+  mutate(comp_out_date = check_out_date - days(1)) %>%  arrange(Bldg_Name, listing_nickname) %>% 
+  select(confirmation_code, status, Bldg_Name, listing_nickname, check_in_date, comp_out_date, check_out_date, host_payout) %>%  
+  write_csv("~/R_files/Domicile/DomProject/DomData/DomBookings28.csv")
+
+head(DomBookings)
+str(DomBookings)
+nrow(DomBookings)
+
+test <- seq(DomBookings$check_in_date[5], (DomBookings$check_out_date[5]), by = "day")
+
+#script to create a new DF called "bookedDF".  Spreads the booking and booking revenue into individual days
+bookedDF <- data_frame(conf = "abce4x-yyxtz3", room = "dummy", booked = ymd("2018-01-31", tz = ""), rev = 0)
+
+for(i in 1:nrow(DomBookings)) {
+  room <- DomBookings$listing_nickname[i]
+  booked <- seq(DomBookings$check_in_date[i], DomBookings$comp_out_date[i], by = "day")
+  rev <- DomBookings$host_payout[i] / as.numeric(difftime(DomBookings$check_out_date[i], DomBookings$check_in_date[i], units = "days"))
+  conf <- DomBookings$confirmation_code[i]
+  z <- cbind.data.frame(conf, room, booked, rev)
+  bookedDF <- rbind(bookedDF, z)
+}
+ class(bookedDF)
+ class(bookedDF$booked)
+bookedDF %>% write_csv("~/R_files/Domicile/DomProject/DomData/bookedDF.csv")
+
+as_tibble(bookedDF)
+
+#adds date about the bookings back to the file:  building information, launch/end dates, and calculates the available days in 
+#each month to use later (as MAX(date)).  This BookingMaster file is used as the base for the charts.
+BookingMaster <- bookedDF %>% mutate(room = as.character(room), 
+                                     listing_nickname = room, year = year(booked), 
+                                     month = month(booked), 
+                                     true = 1, 
+                                     rev_mo = cut(booked, "month")) %>% 
+  left_join(dombuildings, by = "listing_nickname") %>% 
+  left_join(domlaunch_dates1, by = "listing_nickname") %>%  
+  mutate( avail_days = case_when(
+                            month(launch_date) == month(booked) & year(launch_date) == year(booked) ~ 
+                              as.integer(difftime(rollback(ceiling_date(booked, unit = "month")), launch_date, "days")),
+                            TRUE ~ days_in_month(booked))) %>%
+  write_csv("~/R_files/Domicile/DomProject/DomData/BookingMaster.csv")
+
+```
+
+###Domicile Metrics Graphs
+
+Chart one is a heat map of occupancy by month by building, including future bookings.   
+
+
+```{r pressure, echo=FALSE, fig.width=15, fig.asp=0.618, fig.align="center", warning=FALSE, message=FALSE}
+DomSummary <- BookingMaster %>% group_by(Bldg_Name, listing_nickname, year, rev_mo) %>% 
+  summarise(days_booked = sum(true), 
+            days_avail = max(avail_days), 
+            occ_rate = days_booked / days_avail, 
+            Avg_Rev = sum(rev) / sum(true),
+            Rev_Par = Avg_Rev * occ_rate) %>% ungroup()
+
+today <- as.Date(cut(today(), "month"))
+
+DomSummary %>% group_by(Bldg_Name, rev_mo) %>% summarize(occ = mean(occ_rate)) %>% ungroup() %>% 
+  ggplot(aes(x = as.Date(rev_mo), y = Bldg_Name, fill = occ, label = percent(occ))) +
+  geom_tile(color = "white", size = 0.25) +
+  geom_vline(data = today, xintercept = today, color = "grey", size = 6, alpha = 0.45) +
+  geom_text(size=3) + 
+    labs(x = NULL, y = NULL, title = "Monthly Occupancy Rates", subtitle = "by building, grey reference line is current month") + 
+  scale_x_date(date_labels = "%Y-%m", date_breaks = "month", position = "top", expand = c(0,0)) +
+  scale_y_discrete() +
+  scale_fill_gradient(low = "red", high = "green") +
+  theme(axis.text.x = element_text(angle = 45, vjust = -3, size = 6, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.background = element_rect(fill = "white"), 
+        plot.background = element_rect(fill = "white"),
+        panel.border = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "top",
+        legend.title = element_blank(),
+        legend.text.align = 1)
+ 
+
+```
+
+
+The Building Occupancy Rates shows occupancy since launch date.   The points represent the occupancy rate of the individual rooms.  The box encloses 50% of the data, and the middle line is the median occupancy, which is a better indicator than average.  The lines extend to the min and max points based on a statistical norms.  
+
+```{r echo=FALSE, fig.width=9, fig.asp=0.618, fig.align="center", warning=FALSE, message=FALSE}
+
+#Chart showing Occupancy since launch date by building/room.
+DomSummary %>% group_by(Bldg_Name, listing_nickname, year) %>% summarise(annual_occ = mean(occ_rate)) %>%
+  ggplot(aes(x = Bldg_Name, y = annual_occ, color = Bldg_Name)) + 
+  geom_boxplot(show.legend = F) +
+  geom_point(show.legend = F, position = "jitter") +
+  scale_color_manual(values = DomColor) +
+  scale_y_continuous(labels = percent) +
+  theme(axis.ticks = element_blank(),
+        axis.text.y = element_text(face = "bold"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) +
+  labs(x = "", y = "Occupancy Rates", title = "Building Occupancy Rates", subtitle = "from launch date through current date, each unit", 
+       caption = "middle line represents the median occupancy, dots represent the individual units, box represents 50% of the data") +
+  coord_flip()
+```
+
+RevPar models the Revenue per Available Room.  RevPar for each room is represented by the dots, colored by building.   The red line is the median RevPar for all buildings, by month.  
+
+```{r echo=FALSE, fig.width=9, fig.asp=0.618, fig.align="center", warning=FALSE, message=FALSE}
+
+RevParChart <- DomSummary %>% mutate(rev_mo = ymd(rev_mo, tz = "")) %>% filter(rev_mo <= today()) %>%
+  ggplot(aes(as.Date(rev_mo), Rev_Par, col = Bldg_Name)) +
+  geom_point(position = "jitter", size = 3, alpha = 0.45) + 
+  geom_line(aes(as.Date(rev_mo), Rev_Par), stat = "summary", fun.y = "median", color = "red", size = 2, alpha = 0.75, show.legend = F) +
+  labs(x = "", y = "", title = "Revenue Per Available Room", subtitle = paste("trend through", today()), 
+       color = "Building") +
+  scale_x_date(date_labels = "%Y-%m", date_breaks = "month") +
+  scale_y_continuous(labels = dollar_format()) +
+  scale_color_manual(values = DomColor) +
+  theme(axis.text.x = element_text(angle = 45),
+        axis.text.y = element_text(),
+        axis.ticks.y = element_blank())
+
+ggplotly(RevParChart, tooltip = c("x", "y", "colour", width = 1200, height = 800))
+
+```
+
+Annual Average Daily Rate by building was calculated by dividing the host payout by the days booked.  
+
+```{r echo=FALSE, fig.align="center"}
+
+DomSummary %>% mutate(rev_mo = ymd(rev_mo)) %>%
+  filter(year == 2017, Bldg_Name == "Cove") %>% 
+  group_by(Bldg_Name, year, rev_mo) %>% 
+  summarize(Booked_Days = sum(days_booked),
+            Available_Days = sum(days_avail),
+            Occupancy_Rate = percent(Booked_Days / Available_Days),
+            Average_Rev_Night = dollar(round(mean(Avg_Rev))),
+            Rev_PAR = dollar(round(mean(Rev_Par)))) %>%
+  gather(key = Metric, value = value, Booked_Days:Rev_PAR) %>% spread(rev_mo, value, fill = 0) %>% 
+  kable() %>% kable_styling()
+
+
+```
+
+```{r, echo=FALSE, fig.width=9, fig.asp=0.618, fig.align="center"}
+domdetail <- dommaster %>% mutate(duration = difftime(check_out_date, check_in_date, "days"), 
+                                  date = ymd(cut(check_in_date, "month"), tz = ""),
+                                  booked = ifelse(status == "confirmed", 1, 0)) 
+
+TotalRev <- domdetail %>% group_by(status, date) %>% filter(status == "confirmed") %>% summarise(revenue = sum(host_payout)) %>% ungroup()
+
+domdetail %>% group_by(status, neighborhood, date) %>% filter(status == "confirmed") %>%
+  summarize(booking = sum(booked),
+            revenue = sum(host_payout)) %>% ungroup() %>%  
+  ggplot(aes(x = date) ) + 
+  geom_bar(aes(y = revenue, col = neighborhood, fill = neighborhood), stat = "identity") +
+  geom_text(data = TotalRev, aes(x = date, y = revenue, label = paste(dollar(round(revenue / 1000)),"K")), 
+            stat = "identity", angle = 90, hjust = -0.2) +
+  scale_y_continuous(labels = dollar_format(), expand = c(0, 0), limits = c(0, 500000)) +
+  scale_color_manual(values = DomColor) +
+  scale_fill_manual(values = DomColor) + 
+  ggtitle("Total Revenue per Month") + 
+  labs(x = NULL, y = NULL) +
+  theme_light() + 
+  theme(axis.text = element_text(face = "bold", size = 10),
+        plot.background = element_rect(colour = "white", fill = "white"),
+        panel.grid = element_blank())
+        
+```
+
+```{r echo=FALSE, fig.width=9, fig.asp=0.618, fig.align="center", warning=FALSE, message=FALSE}
+
+#Average Daily Room Revenue Chart 8-30-2018
+AnnualAvgRev <- BookingMaster %>% group_by(Bldg_Name, year) %>% 
+                summarise(An_days_booked = sum(true),
+                          An_Revenue = sum(rev),
+                          An_Avg_Rev = sum(rev) / sum(true)) %>% ungroup()
+
+  AnnualAvgRev %>% 
+  mutate(Bldg_Name = fct_reorder2(as.factor(Bldg_Name), An_Avg_Rev, year)) %>% 
+  ggplot(aes(x = factor(-An_Avg_Rev), y = An_Avg_Rev, color = Bldg_Name , fill = Bldg_Name)) +
+  geom_bar(stat = "identity", show.legend = T) + 
+  geom_text(aes(label = paste("$", round(An_Avg_Rev)), angle = 90, hjust = -0.5))  +
+  facet_grid(. ~ year, scale = "free_x", space = "free_x") +
+  scale_color_manual(values = DomColor) +
+  scale_fill_manual(values = DomColor) +
+  scale_y_continuous(labels = dollar_format(), expand = c(0,0)) +
+  labs(x = "", y = NULL, title = "Average Daily Rate by Building", 
+       subtitle = "YTD 2018, includes future bookings") +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank())
+
+```
