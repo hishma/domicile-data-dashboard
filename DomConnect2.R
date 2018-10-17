@@ -11,9 +11,10 @@ library(plotly)
 library(quantreg)
 library(stringr)
 library(leaflet)
+library(leaflet.extras)
 library(broom)
 
-##these are data files to load
+##these are data files to load for the plots below.  Created in the New_Startup_Script.R file.
 load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/dommaster.RData")
 load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/BookingMaster.RData")
 load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/DomSummary.RData")

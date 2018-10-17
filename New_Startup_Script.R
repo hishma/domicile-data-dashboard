@@ -57,6 +57,11 @@ BuildingNames <- unique(dombuildings$Bldg_Name)
 #Base DF.  Raw booking data filtered for reserved/confirmed rooms.  Calcs' for number of days and nights.  
 #Adds a (Comp day, which aids calcs in later code to lengthen
 #bookings over the individual days booked.  Cleans the Source column.
+
+dommaster <- dombookings %>% left_join(BldgMaster, by = "listing_nickname") 
+
+save(dommaster, file = "~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/dommaster.RData")
+
 DomBookings <- dommaster %>% filter(status %in% c("confirmed", "reserved") & host_payout > 0 & (!is.na(check_in_date) | !is.na(check_out_date))) %>% 
   filter(!(status == "reserved" & check_in_date < ymd(today(), tz = "") )) %>% 
   mutate(comp_out_date = check_out_date - days(1),
@@ -107,7 +112,7 @@ BookedDF <- bookedDF %>% mutate(year = year(booked),
                                 rev_mo = as.Date(ymd(cut(booked, "month"), tz = ""))) %>%
   left_join(BldgMaster, by = "listing_nickname")
   
-  
+BookedDF %>% write_csv("~/R_files/Domicile/DomProject/DomData/BookedDF.csv")  
 
 #Read in the Launch Dates and clean to remove duplicates.  Create a new "long" data frame by sequencing by day between launch and end dates and adding a "Rev_Mo" column.  Work around the 
 #Lubridate issue of month increments not putting the last rev_mo if there wasn't a full month before the end date by changing both to first of month.  
@@ -160,7 +165,7 @@ for(i in 1:nrow(CL)) {
 }
 
 RoomsDFdays <- roomsDFdays %>% mutate(rev_mo = as.Date(ymd(cut(booked, breaks = "months"), tz = "")))
-
+RoomsDFdays %>% write_csv("~/R_files/Domicile/DomProject/DomData/RoomsDFdays.csv")
 #New base dataframe to use for analysis.  Data is displayed on a daily basis rather than monthly.  Other dependencies exist for this data.
 DaysDF <- RoomsDFdays %>% full_join(BookedDF, by = c("building", "listing_nickname", "rev_mo", "booked")) %>% 
   mutate(booked = ymd(booked, tz = ""),
@@ -172,6 +177,8 @@ DaysDF <- RoomsDFdays %>% full_join(BookedDF, by = c("building", "listing_nickna
          week = epiweek(booked), weekname = cut.POSIXt(booked, "week", start.on.monday = F), 
          weekdate = ymd_hms(as.character(weekname), tz = ""))
 
+DaysDF %>% write_csv("~/R_files/Domicile/DomProject/DomData/DaysDF.csv")
+save(DaysDF, file = "~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/DaysDF.RData")
 ymd_hms(as.character(DaysDF$weekname), tz = "")
 
 DaysDownload <- DaysDF %>% select(neighborhood, cohort, Bldg_Name, 
@@ -195,6 +202,8 @@ WeekOcc <- DaysDF %>% group_by(listing_nickname, year = year(weekdate), week, we
   
 BldgLL <- BldgMaster %>% group_by(Bldg_Name) %>% 
   summarize(Latitude = unique(Latitude), Longitude = unique(Longitude))
+
+WeekOcc %>% write_csv("~/R_files/Domicile/DomProject/DomData/WeekOcc.csv")
 
 ###Data for Leaflet Map in App
 MonthDet <- DaysDF %>% group_by(listing_nickname, rev_mo) %>% 
@@ -237,6 +246,7 @@ MonthAll <- DaysDF %>% group_by(listing_nickname, rev_mo) %>%
                                  Occ = booked_days / avail_days,
                                  RevPar = ADR * Occ) %>% ungroup() 
 
+MonthAll %>% write_csv("~/R_files/Domicile/DomProject/DomData/MonthAll.csv")
 save(MonthAll, file = "~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/MonthAll.RData")
 
 ##RPOcc doesn't have the correct numbers for avail days due to source grouping.
@@ -321,5 +331,17 @@ RevOcc <- DomSummary %>% mutate(rev_mo = ymd(rev_mo, tz = "")) %>%
   select(Bldg_Name, year, rev_mo, Occupancy_Rate, Average_Rev_Night) %>%  
   gather(key = Metric, value = value, 4:5)
 
-  
+YTDSummary <- DaysDF  %>%  filter(year(now()) == year(booked), 
+                                  booked < floor_date(now(), "month")) %>% 
+  summarise(YTDRev = sum(rev, na.rm = T), 
+            YTDOcc = sum(BT, na.rm = T) / sum(AT, na.rm = T), 
+            YTDADR = sum(rev, na.rm = T)/ sum(BT, na.rm = T), 
+            YTDRevPar = YTDADR * YTDOcc)
+
+CurMoSummary <- DaysDF  %>%  filter(year(now()) == year(booked), 
+                                    rev_mo == floor_date(now(), "month")) %>% 
+  summarise(MoRev = sum(rev, na.rm = T), 
+            MoOcc = sum(BT, na.rm = T) / sum(AT, na.rm = T), 
+            MoADR = sum(rev, na.rm = T)/ sum(BT, na.rm = T), 
+            MoRevPar = MoADR * MoOcc)
 
