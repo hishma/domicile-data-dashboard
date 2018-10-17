@@ -41,18 +41,17 @@ ninetyseq <- seq.Date(monthstart, by = "day", length.out = 90)
 
 #Color Palette
 DomColor <- c("#8B668B", "#6CA6CD", "#FF6347", "#A2CD5A", "#878787", "#CD853F", "#36648B", "#FFC125", "#fb9a99", "#53868B", "#8B795E")
-DomColor2 <- c("#FD3B36", "#6AA6E2", "#0F425D", "#888888", "#885EA8", "#7ED321", "#FF7F00", "#FFB90F", "#698B69", "#CDBA96", "#EEEE00")
 DomCol11 <- c("#885EA8", "#6AA6E2", "#FF6347", "#878787", "#CD853F", "#36648B", "#FFC125", "#FB9A99", "#589CA1FD", "#B89C76FE", "#A2CD5A")
 DomCol12 <- c("#8B668B", "#6CA6CD", "#FF6347", "#A2CD5A", "#878787", "#CD853F", "#36648B", "#FFC125", "#fb9a99", "#53868B", "#8B795E")
 DomColSource <- c("#8B668B", "#6CA6CD", "#FF6347", "#A2CD5A", "#878787", "#CD853F", "#36648B")
 #import, shape, and connect other tables.
-dombuildings <- read_csv("~/R_files/Domicile/DomProject/DomData/bldg.csv") 
-domneighborhoods <- read_csv("~/R_files/Domicile/DomProject/DomData/Data/Neighborhood.csv")
+dombuildings <- read_csv("~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/bldg.csv") 
+domneighborhoods <- read_csv("~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/Data/Neighborhood.csv")
 BldgMaster <- dombuildings %>% left_join(domneighborhoods, by = c("Bldg_Name", "building"))
 save(domneighborhoods, file = "~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/domneighborhoods.RData")
 save(BldgMaster, file = "~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/BldgMaster.RData")
-ListingNicknames <- unique(dommaster$listing_nickname)
-BuildingNames <- unique(dombuildings$Bldg_Name)
+ListingNicknames <- unique(BldgMaster$listing_nickname)
+BuildingNames <- unique(BldgMaster$Bldg_Name)
 
 #Base DF.  Raw booking data filtered for reserved/confirmed rooms.  Calcs' for number of days and nights.  
 #Adds a (Comp day, which aids calcs in later code to lengthen
@@ -116,34 +115,40 @@ BookedDF %>% write_csv("~/R_files/Domicile/DomProject/DomData/BookedDF.csv")
 
 #Read in the Launch Dates and clean to remove duplicates.  Create a new "long" data frame by sequencing by day between launch and end dates and adding a "Rev_Mo" column.  Work around the 
 #Lubridate issue of month increments not putting the last rev_mo if there wasn't a full month before the end date by changing both to first of month.  
-DLT<- read_csv("~/R_files/Domicile/DomProject/DomData/Data/LaunchDateNew.csv")
-  
-cleanlaunch <- DLT[!(DLT$launch_date =="1/15/18" & DLT$end_date =="4/30/18" & DLT$building == "marina"), ]
+# DLT <- read_csv("~/R_files/Domicile/DomProject/DomData/Data/LaunchDateNew.csv")
+#   
+# cleanlaunch <- DLT[!(DLT$launch_date =="1/15/18" & DLT$end_date =="4/30/18" & DLT$building == "marina"), ]
 
 
 
 
-CL <- cleanlaunch %>% mutate(launch_date = mdy(launch_date, tz = ""), 
-                             pdlaunch_date = ymd(cut(launch_date, "month"), tz = ""), 
-                             end_date = mdy(end_date, tz = ""),
-                             pdend_date = ymd(cut(end_date, "month"), tz = "")) 
+#CL <- cleanlaunch %>% mutate(launch_date = mdy(launch_date, tz = ""), 
+                             # pdlaunch_date = ymd(cut(launch_date, "month"), tz = ""), 
+                             # end_date = mdy(end_date, tz = ""),
+                             # pdend_date = ymd(cut(end_date, "month"), tz = "")) 
 
-CL %>% write_csv("~/R_files/Domicile/DomProject/DomData/Data/CL.csv")
-roomsDF <- data_frame(listing_nickname = "test",
-                      rev_mo = as.Date(ymd("2018-01-31", tz = "")),
-                      launch_date = ymd("2018-01-31", tz = ""),
-                      end_date = ymd("2018-01-31", tz = ""),
-                      building = "testdummy")
+##The new file "RoomDetail.csv" should be used as the database file where updates to room launch and end dates, 
+##and addition of new rooms are made.  This data originally came from Simon's spreadsheet and was put through a 
+##cleaning script to remove duplicates, but this has proved unstable, since the second time, minor changes were made in the spreadsheet 
+##which caused downline errors in the code.  The information in this spreadsheet should be transfered to tables in PostgreSQL
+CL <- read_csv("~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/RoomDetail.csv")
 
-for(i in 1:nrow(CL)) {
-    listing_nickname <- CL$listing_nickname[i]
-    rev_mo <- as.Date(seq.POSIXt(CL$pdlaunch_date[i], CL$pdend_date[i], by = "month"))
-    launch_date <- CL$launch_date[i]
-    end_date <- CL$end_date[i]
-    building <- CL$building[i]
-    z <- cbind.data.frame(listing_nickname, rev_mo, launch_date, end_date, building)
-    roomsDF <- rbind(roomsDF, z)
-  }
+
+# roomsDF <- data_frame(listing_nickname = "test",
+#                       rev_mo = as.Date(ymd("2018-01-31", tz = "")),
+#                       launch_date = ymd("2018-01-31", tz = ""),
+#                       end_date = ymd("2018-01-31", tz = ""),
+#                       building = "testdummy")
+# 
+# for(i in 1:nrow(CL)) {
+#     listing_nickname <- CL$listing_nickname[i]
+#     rev_mo <- as.Date(seq.POSIXt(CL$pdlaunch_date[i], CL$pdend_date[i], by = "month"))
+#     launch_date <- CL$launch_date[i]
+#     end_date <- CL$end_date[i]
+#     building <- CL$building[i]
+#     z <- cbind.data.frame(listing_nickname, rev_mo, launch_date, end_date, building)
+#     roomsDF <- rbind(roomsDF, z)
+#   }
 
 #### New CODE TO construction a by-day version of the booking master file for analysis by day and week. Foundation for code below.
 roomsDFdays <- data_frame(listing_nickname = "test",
@@ -166,6 +171,7 @@ for(i in 1:nrow(CL)) {
 
 RoomsDFdays <- roomsDFdays %>% mutate(rev_mo = as.Date(ymd(cut(booked, breaks = "months"), tz = "")))
 RoomsDFdays %>% write_csv("~/R_files/Domicile/DomProject/DomData/RoomsDFdays.csv")
+
 #New base dataframe to use for analysis.  Data is displayed on a daily basis rather than monthly.  Other dependencies exist for this data.
 DaysDF <- RoomsDFdays %>% full_join(BookedDF, by = c("building", "listing_nickname", "rev_mo", "booked")) %>% 
   mutate(booked = ymd(booked, tz = ""),
