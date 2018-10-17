@@ -111,7 +111,7 @@ BookedDF <- bookedDF %>% mutate(year = year(booked),
                                 rev_mo = as.Date(ymd(cut(booked, "month"), tz = ""))) %>%
   left_join(BldgMaster, by = "listing_nickname")
   
-BookedDF %>% write_csv("~/R_files/Domicile/DomProject/DomData/BookedDF.csv")  
+
 
 #Read in the Launch Dates and clean to remove duplicates.  Create a new "long" data frame by sequencing by day between launch and end dates and adding a "Rev_Mo" column.  Work around the 
 #Lubridate issue of month increments not putting the last rev_mo if there wasn't a full month before the end date by changing both to first of month.  
@@ -209,7 +209,6 @@ WeekOcc <- DaysDF %>% group_by(listing_nickname, year = year(weekdate), week, we
 BldgLL <- BldgMaster %>% group_by(Bldg_Name) %>% 
   summarize(Latitude = unique(Latitude), Longitude = unique(Longitude))
 
-WeekOcc %>% write_csv("~/R_files/Domicile/DomProject/DomData/WeekOcc.csv")
 
 ###Data for Leaflet Map in App
 MonthDet <- DaysDF %>% group_by(listing_nickname, rev_mo) %>% 
