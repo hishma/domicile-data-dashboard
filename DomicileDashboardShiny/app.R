@@ -13,6 +13,7 @@ library(forcats)
 library(DT)
 library(plotly)
 library(leaflet)
+library(packrat)
 
 load("./Data/dommaster.RData")
 load("./Data/BookingMaster.RData")
