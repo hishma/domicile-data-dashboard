@@ -2,8 +2,6 @@ library(tidyverse)
 library(lubridate)
 library(readxl)
 library(DBI)
-library(zoo)
-library(xts)
 library(scales)
 library(forcats)
 library(gridExtra)
@@ -46,7 +44,7 @@ DomCol12 <- c("#8B668B", "#6CA6CD", "#FF6347", "#A2CD5A", "#878787", "#CD853F", 
 DomColSource <- c("#8B668B", "#6CA6CD", "#FF6347", "#A2CD5A", "#878787", "#CD853F", "#36648B")
 #import, shape, and connect other tables.
 dombuildings <- read_csv("~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/bldg.csv") 
-domneighborhoods <- read_csv("~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/Data/Neighborhood.csv")
+domneighborhoods <- read_csv("~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/Neighborhood.csv")
 BldgMaster <- dombuildings %>% left_join(domneighborhoods, by = c("Bldg_Name", "building"))
 save(domneighborhoods, file = "~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/domneighborhoods.RData")
 save(BldgMaster, file = "~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/BldgMaster.RData")
@@ -134,21 +132,21 @@ BookedDF <- bookedDF %>% mutate(year = year(booked),
 CL <- read_csv("~/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/RoomDetail.csv")
 
 
-# roomsDF <- data_frame(listing_nickname = "test",
-#                       rev_mo = as.Date(ymd("2018-01-31", tz = "")),
-#                       launch_date = ymd("2018-01-31", tz = ""),
-#                       end_date = ymd("2018-01-31", tz = ""),
-#                       building = "testdummy")
-# 
-# for(i in 1:nrow(CL)) {
-#     listing_nickname <- CL$listing_nickname[i]
-#     rev_mo <- as.Date(seq.POSIXt(CL$pdlaunch_date[i], CL$pdend_date[i], by = "month"))
-#     launch_date <- CL$launch_date[i]
-#     end_date <- CL$end_date[i]
-#     building <- CL$building[i]
-#     z <- cbind.data.frame(listing_nickname, rev_mo, launch_date, end_date, building)
-#     roomsDF <- rbind(roomsDF, z)
-#   }
+ roomsDF <- data_frame(listing_nickname = "test",
+                       rev_mo = as.Date(ymd("2018-01-31", tz = "")),
+                       launch_date = ymd("2018-01-31", tz = ""),
+                       end_date = ymd("2018-01-31", tz = ""),
+                      building = "testdummy")
+
+ for(i in 1:nrow(CL)) {
+    listing_nickname <- CL$listing_nickname[i]
+     rev_mo <- as.Date(seq.POSIXt(CL$pdlaunch_date[i], CL$pdend_date[i], by = "month"))
+     launch_date <- CL$launch_date[i]
+     end_date <- CL$end_date[i]
+     building <- CL$building[i]
+    z <- cbind.data.frame(listing_nickname, rev_mo, launch_date, end_date, building)
+     roomsDF <- rbind(roomsDF, z)
+  }
 
 #### New CODE TO construction a by-day version of the booking master file for analysis by day and week. Foundation for code below.
 roomsDFdays <- data_frame(listing_nickname = "test",
