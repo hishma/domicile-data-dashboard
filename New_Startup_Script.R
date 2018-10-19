@@ -343,8 +343,12 @@ YTDSummary <- DaysDF  %>%  filter(year(now()) == year(booked),
 
 CurMoSummary <- DaysDF  %>%  filter(year(now()) == year(booked), 
                                     rev_mo == floor_date(now(), "month")) %>% 
-  summarise(MoRev = sum(rev, na.rm = T), 
-            MoOcc = sum(BT, na.rm = T) / sum(AT, na.rm = T), 
-            MoADR = sum(rev, na.rm = T)/ sum(BT, na.rm = T), 
-            MoRevPar = MoADR * MoOcc)
+
+    summarise(MoRev = sum(rev, na.rm = TRUE), 
+            MoOcc = sum(BT) / sum(AT), 
+            MoADR = MoRev / sum(BT), 
+            MoRevPar = MoADR * MoOcc) %>% mutate(MoRev = dollar(MoRev),
+                                                 MoOcc = percent(MoOcc, accuracy = 1),
+                                                 MoADR = dollar(MoADR, accuracy = 1),
+                                                 MoRevPar = dollar(MoRevPar, accuracy = 1))
 

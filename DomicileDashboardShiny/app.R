@@ -50,10 +50,15 @@ YTDSummary <- DaysDF  %>%  filter(year(now()) == year(booked),
 
 CurMoSummary <- DaysDF  %>%  filter(year(now()) == year(booked), 
                                     rev_mo == floor_date(now(), "month")) %>% 
-  summarise(MoRev = sum(rev, na.rm = T), 
-            MoOcc = sum(BT, na.rm = T) / sum(AT, na.rm = T), 
-            MoADR = sum(rev, na.rm = T)/ sum(BT, na.rm = T), 
-            MoRevPar = MoADR * MoOcc)
+  
+  summarise(MoRev = sum(rev, na.rm = TRUE), 
+            MoOcc = sum(BT) / sum(AT), 
+            MoADR = MoRev / sum(BT), 
+            MoRevPar = MoADR * MoOcc) %>% mutate(MoRev = dollar(MoRev),
+                                                 MoOcc = percent(MoOcc, accuracy = 1),
+                                                 MoADR = dollar(MoADR, accuracy = 1),
+                                                 MoRevPar = dollar(MoRevPar, accuracy = 1))
+
 
 DomVel <- DomBookings %>% left_join(domneighborhoods, by = "Bldg_Name") %>% 
   mutate(rev_mo = ymd(cut(check_in_date, breaks = "month"), tz = ""),
@@ -617,27 +622,27 @@ server <- function(input,output, session) ({
  
   output$MoRev <- renderValueBox({
     valueBox(
-      dollar(round(CurMoSummary$MoRev)),
+      CurMoSummary$MoRev,
       paste(month(now(), label = T, abbr = F),"Total Revenue"), color = "fuchsia"
     )
   })
   
   output$MoOcc <- renderValueBox({
     valueBox(
-      percent(CurMoSummary$MoOcc),
+      CurMoSummary$MoOcc,
       paste(month(now(), label = T, abbr = F),"Occupancy Rate"), color = "fuchsia"
     )
   })
   
   output$MoADR <- renderValueBox({
     valueBox(
-      dollar(round(CurMoSummary$MoADR)),
+      CurMoSummary$MoADR,
       paste(month(now(), label = T, abbr = F),"Average Daily Revenue"), color = "fuchsia"
     )
   })
   output$MoRevPar <- renderValueBox({
     valueBox(
-      dollar(round(CurMoSummary$MoRevPar)),
+      CurMoSummary$MoRevPar,
       paste(month(now(), label = T, abbr = F),"Average RevPar"), color = "fuchsia"
     )
   })
