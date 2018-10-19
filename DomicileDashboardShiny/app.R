@@ -1,5 +1,6 @@
 library(shiny)
 library(shinydashboard)
+library(tidyverse)
 library(tidyr)
 library(dplyr)
 library(readr)
@@ -595,7 +596,7 @@ server <- function(input,output, session) ({
   
   output$YTDOcc <- renderValueBox({
     valueBox(
-      percent(YTDSummary$YTDOcc),
+      percent(YTDSummary$YTDOcc, trim = T),
       "YTD Occupancy Rate", color = "purple"
     )
   })

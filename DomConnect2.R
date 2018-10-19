@@ -15,17 +15,18 @@ library(leaflet.extras)
 library(broom)
 
 ##these are data files to load for the plots below.  Created in the New_Startup_Script.R file.
-load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/dommaster.RData")
-load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/BookingMaster.RData")
-load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/DomSummary.RData")
-load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/WeekOcc.RData")
-load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/RPOcc.RData")
-load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/DomBookings.RData")
-load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/WeekSum.RData")
-load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/DaysDF.RData")
-load("/Users/bari/R_files/Domicile/Domproject/DomicileDashboardShiny/domneighborhoods.RData")
-load("~/R_files/Domicile/DomProject/DomicileDashboardShiny/MonthDet.RData")
-load("~/R_files/Domicile/DomProject/DomicileDashboardShiny/MonthAll.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/dommaster.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/BookingMaster.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/DomSummary.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/WeekOcc.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/RPOcc.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/BldgMaster.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/WeekSum.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/DaysDF.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/DomBookings.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/domneighborhoods.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/MonthDet.RData")
+load("/Users/bari/R_files/Domicile/DomProject/DomicileDashboardShiny/Data/MonthAll.RData")
 
 DomCol11 <- c("#885EA8", "#6AA6E2", "#FF6347", "#878787", "#CD853F", "#36648B", "#FFC125", "#FB9A99", "#589CA1FD", "#B89C76FE", "#A2CD5A")
 today <- ymd(cut(today(), "month")) 
@@ -820,3 +821,40 @@ DomVel %>% filter(ADR > 300) %>%
   labs(title = "Bookings with ADR > $300", subtitle = "by Revenue Month", 
        x = NULL, y = NULL)
 
+YTDSummary <- DaysDF  %>%  filter(year(now()) == year(booked), 
+                                  booked < floor_date(now(), "month")) %>% 
+  summarise(YTDRev = sum(rev, na.rm = T), 
+            YTDOcc = sum(BT, na.rm = T) / sum(AT, na.rm = T), 
+            YTDADR = sum(rev, na.rm = T)/ sum(BT, na.rm = T), 
+            YTDRevPar = YTDADR * YTDOcc)
+
+CurMoSummary <- DaysDF  %>%  filter(year(now()) == year(booked), 
+                                    rev_mo == floor_date(now(), "month")) %>% 
+  summarise(MoRev = sum(rev, na.rm = T), 
+            MoOcc = sum(BT, na.rm = T) / sum(AT, na.rm = T), 
+            MoADR = sum(rev, na.rm = T)/ sum(BT, na.rm = T), 
+            MoRevPar = MoADR * MoOcc)
+
+DomVel <- DomBookings %>% left_join(domneighborhoods, by = "Bldg_Name") %>% 
+  mutate(rev_mo = ymd(cut(check_in_date, breaks = "month"), tz = ""),
+         weekday = factor(weekdays(check_in_date, abbreviate = T), levels = c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")))
+
+glimpse(DomVel)
+
+RoomWt <- DomVel %>% group_by(cohort, Bldg_Name) %>% summarise(rooms = n_distinct(listing_nickname))
+boxmed <- DomVel %>% left_join(RoomWt, by = c("cohort", "Bldg_Name")) %>% group_by(Bldg_Name) %>% 
+  summarise(med = median(ADR))
+
+DomVel %>% left_join(RoomWt, by = c("cohort", "Bldg_Name")) %>% 
+  filter(year(rev_mo) == 2018) %>%
+  ggplot(aes(x = Bldg_Name)) +
+  geom_point(aes(y = ADR, color = cohort), position = "jitter", alpha = 0.25, show.legend = T) +
+  geom_boxplot(aes(y = ADR, weight=rooms), color = "dark gray", varwidth = T) +
+  geom_text(data = boxmed, aes(x=Bldg_Name, y = med, label = dollar(med)), position = "dodge") +
+  scale_color_manual(values = DomCol11) + 
+  scale_y_continuous(labels = dollar_format()) + 
+  theme_light() +
+  theme(panel.grid.major.x = element_blank(),
+        axis.text.x = element_text(size = 10, face = "bold", angle = -30)) +
+  labs(title = "Average Daily Revenue by Building", subtitle = paste(max(year(rev_mo)), "with median ADR labeled"), x = NULL, 
+       caption = "Width of boxes adjusted by number of rooms in the building \nBox encloses 50% of ADR's\nMin, max and outliers shown by lines and grey dots\nColored dots show individual ADRs by booking")
