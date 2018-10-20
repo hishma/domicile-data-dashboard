@@ -1,0 +1,12 @@
+name: DomicileDashboardShiny
+title: DomicileDashboardShiny
+username:
+account: bbookout
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 522216
+bundleId: 1651572
+url: https://bbookout.shinyapps.io/DomicileDashboardShiny/
+when: 1539961363.24618
+asMultiple: FALSE
+asStatic: FALSE

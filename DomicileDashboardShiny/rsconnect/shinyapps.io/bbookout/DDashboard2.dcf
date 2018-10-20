@@ -1,0 +1,12 @@
+name: DDashboard2
+title: DDashboard2
+username:
+account: bbookout
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 525083
+bundleId: 1651786
+url: https://bbookout.shinyapps.io/DDashboard2/
+when: 1539969093.20745
+asMultiple: FALSE
+asStatic: FALSE
