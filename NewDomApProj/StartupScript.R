@@ -43,11 +43,11 @@ DomCol11 <- c("#885EA8", "#6AA6E2", "#FF6347", "#878787", "#CD853F", "#36648B", 
 DomCol12 <- c("#8B668B", "#6CA6CD", "#FF6347", "#A2CD5A", "#878787", "#CD853F", "#36648B", "#FFC125", "#fb9a99", "#53868B", "#8B795E")
 DomColSource <- c("#8B668B", "#6CA6CD", "#FF6347", "#A2CD5A", "#878787", "#CD853F", "#36648B")
 #import, shape, and connect other tables.
-dombuildings <- read_csv("~/R_files/Domicile/DomProject/NewDomApProj/Data/bldg.csv") 
-domneighborhoods <- read_csv("~/R_files/Domicile/DomProject/NewDomApProj/Data/Neighborhood.csv")
+dombuildings <- read_csv("~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/bldg.csv") 
+domneighborhoods <- read_csv("~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/Neighborhood.csv")
 BldgMaster <- dombuildings %>% left_join(domneighborhoods, by = c("Bldg_Name", "building"))
-save(domneighborhoods, file = "~/R_files/Domicile/DomProject/NewDomApProj/domneighborhoods.RData")
-save(BldgMaster, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/BldgMaster.RData")
+save(domneighborhoods, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/domneighborhoods.RData")
+save(BldgMaster, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/BldgMaster.RData")
 ListingNicknames <- unique(BldgMaster$listing_nickname)
 BuildingNames <- unique(BldgMaster$Bldg_Name)
 
@@ -57,7 +57,7 @@ BuildingNames <- unique(BldgMaster$Bldg_Name)
 
 dommaster <- dombookings %>% left_join(BldgMaster, by = "listing_nickname") 
 
-save(dommaster, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/dommaster.RData")
+save(dommaster, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/dommaster.RData")
 
 DomBookings <- dommaster %>% filter(status %in% c("confirmed", "reserved") & host_payout > 0 & (!is.na(check_in_date) | !is.na(check_out_date))) %>% 
   filter(!(status == "reserved" & check_in_date < ymd(today(), tz = "") )) %>% 
@@ -77,7 +77,7 @@ DomBookings <- dommaster %>% filter(status %in% c("confirmed", "reserved") & hos
   select(confirmation_code, source, status, Bldg_Name, listing_nickname, check_in_date, 
          comp_out_date, check_out_date, ADR, num_nights, host_payout, created_at, days_in_advance) 
 
-save(DomBookings, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/DomBookings.RData")
+save(DomBookings, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/DomBookings.RData")
 
 #Base table used in graphs for dashboard.  
 DomVel <- DomBookings %>% left_join(domneighborhoods, by = "Bldg_Name") %>% 
@@ -129,7 +129,7 @@ BookedDF <- bookedDF %>% mutate(year = year(booked),
 ##and addition of new rooms are made.  This data originally came from Simon's spreadsheet and was put through a 
 ##cleaning script to remove duplicates, but this has proved unstable, since the second time, minor changes were made in the spreadsheet 
 ##which caused downline errors in the code.  The information in this spreadsheet should be transfered to tables in PostgreSQL
-CL <- read_csv("~/R_files/Domicile/DomProject/NewDomApProj/Data/RoomDetail.csv")
+CL <- read_csv("~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/RoomDetail.csv")
 
 
 roomsDF <- data_frame(listing_nickname = "test",
@@ -168,7 +168,7 @@ for(i in 1:nrow(CL)) {
 }
 
 RoomsDFdays <- roomsDFdays %>% mutate(rev_mo = as.Date(ymd(cut(booked, breaks = "months"), tz = "")))
-RoomsDFdays %>% write_csv("~/R_files/Domicile/DomProject/DomData/RoomsDFdays.csv")
+
 
 #New base dataframe to use for analysis.  Data is displayed on a daily basis rather than monthly.  Other dependencies exist for this data.
 DaysDF <- RoomsDFdays %>% full_join(BookedDF, by = c("building", "listing_nickname", "rev_mo", "booked")) %>% 
@@ -181,9 +181,7 @@ DaysDF <- RoomsDFdays %>% full_join(BookedDF, by = c("building", "listing_nickna
          week = epiweek(booked), weekname = cut.POSIXt(booked, "week", start.on.monday = F), 
          weekdate = ymd_hms(as.character(weekname), tz = ""))
 
-DaysDF %>% write_csv("~/R_files/Domicile/DomProject/DomData/DaysDF.csv")
-save(DaysDF, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/DaysDF.RData")
-ymd_hms(as.character(DaysDF$weekname), tz = "")
+save(DaysDF, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/DaysDF.RData")
 
 DaysDownload <- DaysDF %>% select(neighborhood, cohort, Bldg_Name, 
                                   listing_nickname, conf, status, rev_mo, weekname, 
@@ -228,7 +226,7 @@ MonthDet <- DaysDF %>% group_by(listing_nickname, rev_mo) %>%
                                                     RevPar = ADR * Occ) %>% ungroup() %>%
   left_join(BldgLL, by = "Bldg_Name")
 
-save(MonthDet, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/MonthDet.RData")
+save(MonthDet, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/MonthDet.RData")
 
 ##Data for graphs attached to LeafLet Map in App
 MonthAll <- DaysDF %>% group_by(listing_nickname, rev_mo) %>% 
@@ -249,8 +247,7 @@ MonthAll <- DaysDF %>% group_by(listing_nickname, rev_mo) %>%
                                  Occ = booked_days / avail_days,
                                  RevPar = ADR * Occ) %>% ungroup() 
 
-MonthAll %>% write_csv("~/R_files/Domicile/DomProject/DomData/MonthAll.csv")
-save(MonthAll, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/MonthAll.RData")
+save(MonthAll, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/MonthAll.RData")
 
 ##RPOcc doesn't have the correct numbers for avail days due to source grouping.
 RPOcc <- DaysDF %>% group_by(listing_nickname, source, year = year(weekdate), week, weekdate) %>% 
@@ -290,9 +287,9 @@ WT <- WS %>% group_by(year, weekdate) %>%
 
 WST <- bind_rows(WS, WT)
 
-save(WeekOcc, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/WeekOcc.RData")
-save(RPOcc, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/RPOcc.RData")
-save(WeekSum, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/WeekSum.RData")
+save(WeekOcc, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/WeekOcc.RData")
+save(RPOcc, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/RPOcc.RData")
+save(WeekSum, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/WeekSum.RData")
 
 
 #At a Month level.  Join the Launch Dates DF to the BookingMaster DF and calculate the days available within the month. Adds weekday as a factor.
@@ -309,8 +306,7 @@ BookingMaster <- BookedDF %>% full_join(roomsDF, by = c("listing_nickname", "bui
                                   abs(as.numeric(days_in_month(rev_mo)) - as.numeric(difftime(rollback(ceiling_date(end_date, unit = "month", change_on_boundary = T)), end_date, "days"))) + 1,
                                 TRUE ~ as.numeric(days_in_month(rev_mo))))
 
-save(BookingMaster, file = "~/R_files/Domicile/DomProject/Domicile_Metrics_Shiny/BookingMaster.RData")
-save(BookingMaster, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/BookingMaster.RData")
+save(BookingMaster, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/BookingMaster.RData")
 
 #Occupancy Rates by Month by Room CODE AND CHART created 8/29/2018
 DomSummary <- BookingMaster %>% group_by(Bldg_Name, listing_nickname, year, rev_mo) %>% 
@@ -320,8 +316,7 @@ DomSummary <- BookingMaster %>% group_by(Bldg_Name, listing_nickname, year, rev_
             Avg_Rev = sum(rev) / sum(BT),
             Rev_Par = Avg_Rev * occ_rate) %>% ungroup() 
 
-save(DomSummary, file = "~/R_files/Domicile/DomProject/Domicile_Metrics_Shiny/DomSummary.RData")
-save(DomSummary, file = "~/R_files/Domicile/DomProject/NewDomApProj/Data/DomSummary.RData")
+save(DomSummary, file = "~/R_files/Domicile/DomProject/NewDomApProj/DDashboard/Data/DomSummary.RData")
 
 
 RevOcc <- DomSummary %>% mutate(rev_mo = ymd(rev_mo, tz = "")) %>% 
